@@ -45,11 +45,27 @@ python MIDIfren.py -i <input_audio> -t <sound_type> [options]
 ---
 
 
-### 📌 Example  
+### 📌 Examples  
 ```bash
 # extract vocal stem from the audio and convert it to midi (with pitchbend) and listen to it
-python MIDIfren.py -i input.wav -type vocals --pitchbend --listen --onset 1.0
+python MIDIfren.py -i input.wav -type vocals --stem --midi --pitchbend --listen
 ```  
+
+```bash
+# extract drums from audio and convert it to midi (with quantization) and listen to it
+python MIDIfren.py -i input.wav -type drums --stem --midi --quantize --listen
+```  
+
+```bash
+# extract bass stem from audio file and listen to it
+python MIDIfren.py -i input.wav -type bass --stem --listen
+```  
+
+```bash
+# convert audio file to midi directly and listen (no stem extraction)
+python MIDIfren.py -i input.wav -type drums --midi --listen
+``` 
+
 ---
 **Output**:  
 
@@ -58,5 +74,7 @@ Midi files, sonified midi and stems will be in the output folder.
 - `output/drums.mid` (MIDI)  
 - ...
 
+**Notes**:
+All audio is automatically normalized and trimmed for silence before processing.
 ---  
 **Made by Omodaka9375 with ❤️ for audio enthusiasts & music devs!** 🎶

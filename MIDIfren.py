@@ -1,4 +1,6 @@
-
+# make by: https://github.com/Omodaka9375 2025
+# repo: https://github.com/Omodaka9375/MIDIfren
+# version 1.0
 import argparse
 import sys
 import os
@@ -27,12 +29,13 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 def main():
     parser = argparse.ArgumentParser(add_help=True, description="Convert audio to stems and/or midi file and listen to it", prog="MIDIfren",  epilog="Thank you for using MIDIfren <3 Omodaka9375 2025")
     parser.add_argument("-i","--input", help="Input audio file (wav, mp3 or flac)", type=str)
-    parser.add_argument("-t", "--type", choices=["vocals", "melody", "drums", "bass"])
+    parser.add_argument("-t", "--type", choices=['drums', 'bass', 'melody', 'vocals'])
     parser.add_argument("-m", "--midi", help="Convert to midi", action="store_true")
     parser.add_argument("-q", "--quantize", help="Quantize midi file", action="store_true")
     parser.add_argument("-s", "--stem", help="Extract stem", action="store_true")
     parser.add_argument("-p", "--pitchbend", help="Include pitchbend in midi", action="store_true")
     parser.add_argument("-b", "--bpm", type=float, help="Set specific BPM (beats per minute) for the MIDI file")
+    parser.add_argument("-n", "--note", type=float, help="Ser minimal note length. Everything below will be ignored.")
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
     parser.add_argument("-l","--listen", help="Play given MIDI file", action="store_true")
     parser.add_argument("-g","--groove", help="Set time signature for the file", action="store_true")
@@ -41,7 +44,9 @@ def main():
     
     _bpm = 120
     _groove = "4/4"
+    _notelength = 127.70
     stem_type = None
+    _quantize = True
 
     out_folder_path = Path("output")
     out_folder_path.mkdir(parents=True, exist_ok=True)
@@ -58,6 +63,9 @@ def main():
         
         if args.groove:
             _groove = args.groove
+        
+        if args.note:
+            _notelength = args.note
 
         if args.type:
             stem_type = args.type
@@ -68,7 +76,7 @@ def main():
                 processor = DemucsProcessor()
                 sources, sample_rate = processor.separate_stems(args.input)
                 print(f"Stem type requested: {stem_type}")
-                stem_index = ["drums", "bass", "melody", "vocals"].index(stem_type)
+                stem_index = ['drums', 'bass', 'melody', 'vocals'].index(stem_type)
                 selected_stem = sources[0, stem_index]
                 # Save stem
                 stem_path = out_folder_path / f"{stem_type}.wav"
@@ -93,10 +101,12 @@ def main():
         else:
             # Load the saved audio file
             audio_data, sr = librosa.load(args.input, sr=None, mono=True)
-            if len(audio_data.shape) > 1:
-                audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
+            yt, index = librosa.effects.trim(audio_data)
+            y_normalized = librosa.util.normalize(yt)
+            if len(y_normalized.shape) > 1:
+                y_normalized = y_normalized.mean(axis=1)  # Convert to mono if stereo
             # Convert to int16 format
-            audio_data = (audio_data * 32767).astype(np.int16)
+            y_normalized = (y_normalized * 32767).astype(np.int16)
             stem_path = args.input
         
         if args.midi:
@@ -108,12 +118,10 @@ def main():
                     if args.onset:
                         _onset = float(args.onset)
                     drumExtractor = DrumBeatExtractor()
-                    drumExtractor.extract_midi(stem_path, _bpm, _onset, _groove, False) # sensitivity
-                    print(f"Saved MIDI to: {midi_path}")
                     if args.quantize:
-                        # quantize to 16th notes (assuming 480 ticks per beat and 4 beats per measure)
-                        # 16th note resolution = (480 ticks/beat) / 4 = 120 ticks
-                        quantize_midi_file(midi_path, midi_path, 120)
+                        _quantize = args.quantize
+                    drumExtractor.extract_midi(stem_path, _bpm, _onset, _groove,_quantize, False) # sensitivity
+                    print(f"Saved MIDI to: {midi_path}")
                     if args.listen:
                         midiplayer = MidiDrumPlayer(midi_path, _bpm)
                         time.sleep(1)
@@ -129,12 +137,10 @@ def main():
                     if args.onset:
                         _onset = float(args.onset)
                     converter = BasicPitchConverter()
-                    converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, _sonify, _pitchbend, _onset)
+                    converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, _sonify, _pitchbend, _onset, _notelength)
                     print(f"Saved MIDI to: {midi_path}")
 
-
-
-def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, separate_stems: bool, bpm: int, sensitivity: float) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
+def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, separate_stems: bool, bpm: int, sensitivity: float, pitchbend: bool, notelength: float = 127.70, groove: str = "4/4", quantize: bool = True) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
     _bpm = bpm
     stem_path = None
     try:
@@ -157,7 +163,7 @@ def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, se
             print(f"Number of sources returned: {sources.shape}")
             print(f"Stem type requested: {stem_type}")
             # Get the requested stem
-            stem_index = ["bass", "melody", "vocals"].index(stem_type)
+            stem_index = ['drums', 'bass', 'melody', 'vocals'].index(stem_type)
             selected_stem = sources[0, stem_index]
             # Save stem
             stem_path = process_dir / f"{stem_type}.wav"
@@ -169,30 +175,32 @@ def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, se
                 audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
             # Convert to int16 format
             audio_data = (audio_data * 32767).astype(np.int16)
+            new_audio = audio_data
         else:
             # Load the saved audio file for Gradio
             audio_data, sr = librosa.load(audio_path, sr=None, mono=True)
-            if len(audio_data.shape) > 1:
-                audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
+            yt, index = librosa.effects.trim(audio_data)
+            y_normalized = librosa.util.normalize(yt)
+            if len(y_normalized.shape) > 1:
+                y_normalized = y_normalized.mean(axis=1)  # Convert to mono if stereo
             # Convert to int16 format
-            audio_data = (audio_data * 32767).astype(np.int16)
+            y_normalized = (y_normalized * 32767).astype(np.int16)
             stem_path = audio_path
+            new_audio = y_normalized
 
         # Convert to MIDI if requested
-        midi_path = None
+        midi_path = process_dir / f"{stem_type}.mid"
         
         if convert_midi:
             if stem_type == "drums":
-                midi_path = process_dir / f"{stem_type}.mid"
-                drumExtractor.extract_midi(stem_path, _bpm, sensitivity, "4/4", True)
+                drumExtractor.extract_midi(stem_path, _bpm, sensitivity, groove, quantize, True)
                 print(f"Saved MIDI to: {midi_path}")
             else:
                 converter = BasicPitchConverter()
-                midi_path = process_dir / f"{stem_type}.mid"
-                converter.convert_to_midi(str(stem_path), str(midi_path), _bpm)
+                converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, False, pitchbend, sensitivity, notelength)
                 print(f"Saved MIDI to: {midi_path}")
                 
-        return (sr, audio_data), str(midi_path) if midi_path else None
+        return (sr, new_audio), str(midi_path) if midi_path else None
     except Exception as e:
         print(f"Error in process_single_audio: {str(e)}")
         raise
@@ -205,7 +213,11 @@ def create_interface():
         convert_midi: bool = True,
         separate_stems: bool = True,
         bpm: int = -1,
-        sensitivity: float = 0.3
+        sensitivity: float = 0.3,
+        pitchbend: bool = True,
+        notelength: float = 127.70,
+        groove: str = "4/4",
+        quantize: bool = True
     ) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
         try:
             print(f"Starting processing of {len(audio_files)} files")
@@ -214,7 +226,7 @@ def create_interface():
             if len(audio_files) > 0:
                 audio_path = audio_files[0]  # Take first file
                 print(f"Processing file: {audio_path}")
-                return process_single_audio(audio_path, stem_type, convert_midi, separate_stems, bpm, sensitivity)
+                return process_single_audio(audio_path, stem_type, convert_midi, separate_stems, bpm, sensitivity, pitchbend, notelength, groove, quantize)
             else:
                 raise ValueError("No audio files provided")
         except Exception as e:
@@ -227,24 +239,29 @@ def create_interface():
             gr.File(
                 file_count="multiple",
                 file_types=AudioValidator.SUPPORTED_FORMATS,
-                label="Upload Audio Files"
+                label="Upload Audio File"
             ),
             gr.Dropdown(
-                choices=["vocals", "drums", "bass", "melody"],
+                choices=['drums', 'bass', 'melody', 'vocals'],
                 label="Select Stem to Extract",
                 value="vocals"
             ),
             gr.Checkbox(label="Convert to MIDI", value=True),
             gr.Checkbox(label="Separate Stems", value=True),
-            gr.Number(label="BPM (-1 autodetect)", value=-1),
-            gr.Number(label="Sensitivity (1.0 - 0.0)", value=0.3)
+            gr.Number(label="BPM (-1 autodetect):", value=-1),
+            gr.Number(label="Sensitivity Threshold (0.0 - 1.0):", value=0.3),
+            gr.Checkbox(label="Include MIDI pitchband:", value=True),
+            gr.Number(label="Minimal note length in miliseconds:", value=127.70),
+            gr.Text(label="Timesignature (groove)", value="4/4"),
+            gr.Checkbox(label="Quantize MIDI", value=True),
+            
         ],
         outputs=[
-            gr.Audio(label="Separated Stems", type="numpy"),
-            gr.File(label="MIDI Files")
+            gr.Audio(label="Separated Stem", type="numpy"),
+            gr.File(label="MIDI File")
         ],
-        title="MIDIfren - 🎵 Audio Stem & MIDI Processor 🧠",
-        description="Upload audio files to extract stems and convert to MIDI\n\n",
+        title="MIDIfren 🎵 Audio Stem & MIDI Processor 🧠",
+        description="\n\n",
         cache_examples=True,
         allow_flagging="never"
     )
@@ -292,26 +309,30 @@ class DrumBeatExtractor:
     def detect_tempo(self, audio_file):
         try:
             y, sr = librosa.load(audio_file, sr=None, mono=True)
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr, units="time")
+            yt, index = librosa.effects.trim(y)
+            tempo, _ = librosa.beat.beat_track(y=yt, sr=sr, units="time")
             print(f"Detected tempo: {int(tempo)} BPM")
             return int(tempo)
         except Exception as e:
             print("Error detecting tempo. Setting tempo to default 120.")
             return 120
 
-    def extract_midi(self, audio_file, tempo, sensitivity, groove, ui):
+    def extract_midi(self, audio_file, tempo, sensitivity, groove, quantize, ui):
         times =  groove.split('/')
-        nom = times[0]
-        denom = times[1]
+        nom = int(times[0])
+        denom = int(times[1])
         try:
             process_dir = OUTPUT_DIR / str(hash(audio_file))
             process_dir.mkdir(parents=True, exist_ok=True)
             # Load as mono for HPSS and feature extraction
             out_folder_path = Path("output")
+            
             self.y, self.sr = librosa.load(audio_file, sr=None, mono=True)
+            yt, index = librosa.effects.trim(self.y)
+            y_normalized = librosa.util.normalize(yt)
             # --- Perform HPSS --- # 
-            y_percussive = librosa.effects.percussive(self.y)
-            # We could also get y_harmonic = librosa.effects.harmonic(self.y) if needed later
+            y_percussive = librosa.effects.percussive(y_normalized)
+            # We could also get y_harmonic = librosa.effects.harmonic(y_normalized) if needed later
             # Detect onsets (using the percussive component)
             onset_env = librosa.onset.onset_strength(
                 y=y_percussive, # Use percussive component here
@@ -357,12 +378,12 @@ class DrumBeatExtractor:
                 start_sample = frame * 512
                 # Use a slightly longer segment for better feature extraction
                 segment_duration = 0.1 # 100ms segment
-                end_sample = min(len(self.y), start_sample + int(segment_duration * self.sr))
+                end_sample = min(len(y_normalized), start_sample + int(segment_duration * self.sr))
 
                 if start_sample >= end_sample:
                     continue
 
-                segment = self.y[start_sample:end_sample]
+                segment = y_normalized[start_sample:end_sample]
                 if len(segment) == 0:
                     continue
 
@@ -447,15 +468,17 @@ class DrumBeatExtractor:
                     # Note off (very short duration)
                     track.append(mido.Message('note_off', note=note, velocity=0, time=10))
             # Save the MIDI file
-            
+           
             if ui:
                 midi_path = process_dir / "drums.mid"
                 mid.save(midi_path)
-                quantize_midi_file(midi_path, midi_path, 120)
-                
+                if quantize:
+                    quantize_midi_file(midi_path, midi_path, 120)
             else:
                 midi_path = out_folder_path / "drums.mid"
                 mid.save(midi_path)
+                if quantize:
+                    quantize_midi_file(midi_path, midi_path, 120)
               
         except Exception as e:
             print(f"Error exporting MIDI: {str(e)}")
@@ -464,14 +487,13 @@ class BasicPitchConverter:
     def __init__(self):
         self.process_options = {
             'frame_threshold': 0.3,
-            'minimum_note_length': 127.70,  # in milliseconds
             'minimum_frequency': 32.7,  # C1
             'maximum_frequency': 2093,  # C7
             'melodia_trick': True
         }
         print("Basic Pitch converter initialized")  # Keep using print for consistency
 
-    def convert_to_midi(self, audio_path: str, output_path: str, bpm: int, sonify: bool = False, pitchbend: bool = False, onset: float = 1, progress: Optional[callable] = None) -> str:
+    def convert_to_midi(self, audio_path: str, output_path: str, bpm: int, sonify: bool = False, pitchbend: bool = False, onset: float = 1.0, notelength: float = 127.70, progress: Optional[callable] = None) -> str:
         try:
             print(f"Converting to MIDI: {audio_path}")  # Keep debugging output
             if progress:
@@ -481,7 +503,7 @@ class BasicPitchConverter:
                 audio_path=audio_path,
                 onset_threshold=onset,
                 frame_threshold=self.process_options['frame_threshold'],
-                minimum_note_length=self.process_options['minimum_note_length'],
+                minimum_note_length=notelength,
                 minimum_frequency=self.process_options['minimum_frequency'],
                 maximum_frequency=self.process_options['maximum_frequency'],
                 melodia_trick=self.process_options['melodia_trick'],
