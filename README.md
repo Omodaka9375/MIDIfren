@@ -5,11 +5,13 @@
 ---
 
 ### 💡 Features  
+- **Supported fomats**: wav, mp3 and flac 🗣️ 
 - **Stem Separation**: Extract vocals, melody, drums, or bass from audio 🎙️  
 - **BPM Detection**: Auto-detect tempo or set manually ⏱️  
 - **MIDI Conversion**: Convert stems or audio to MIDI with adjustable sensitivity and pitchbend 📊  
 - **Playback**: Listen to exported MIDI files instantly 🎹  
 - **Quantization**: Align notes to 16th-note grids (or custom ticks) 🔧  
+- **Maximum input file size**: 100MB 📢 
 
 ---
 ### 📦 Installation  
