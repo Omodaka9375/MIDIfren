@@ -74,7 +74,12 @@ Midi files, sonified midi and stems will be in the output folder.
 - `output/drums.mid` (MIDI)  
 - ...
 
-**Notes**:
-All audio is automatically normalized and trimmed for silence before processing.
+---
+**Note**:
+
+- All audio is automatically normalized and trimmed for silence before processing.
+
 ---  
+
+
 **Made by Omodaka9375 with ❤️ for audio enthusiasts & music devs!** 🎶
