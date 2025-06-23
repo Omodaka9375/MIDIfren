@@ -10,19 +10,24 @@ import librosa
 import mido
 import torch
 import pygame
+import gradio as gr
 import basic_pitch.note_creation as infer
 from basic_pitch.inference import predict, predict_and_save
 from basic_pitch import ICASSP_2022_MODEL_PATH
 from demucs.pretrained import get_model
 from demucs.apply import apply_model
 from mido import Message, MidiTrack, MidiFile, MetaMessage
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from pathlib import Path
+
+# Create a persistent directory for outputs
+OUTPUT_DIR = Path("/tmp/audio_processor")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def main():
     parser = argparse.ArgumentParser(add_help=True, description="Convert audio to stems and/or midi file and listen to it", prog="MIDIfren",  epilog="Thank you for using MIDIfren <3 Omodaka9375 2025")
-    parser.add_argument("-i","--input", help="Input audio file (wav, mp3 or flac)", type=str, required=True)
-    parser.add_argument("-t", "--type", choices=["vocals", "melody", "drums", "bass"], required=True)
+    parser.add_argument("-i","--input", help="Input audio file (wav, mp3 or flac)", type=str)
+    parser.add_argument("-t", "--type", choices=["vocals", "melody", "drums", "bass"])
     parser.add_argument("-m", "--midi", help="Convert to midi", action="store_true")
     parser.add_argument("-q", "--quantize", help="Quantize midi file", action="store_true")
     parser.add_argument("-s", "--stem", help="Extract stem", action="store_true")
@@ -30,6 +35,7 @@ def main():
     parser.add_argument("-b", "--bpm", type=float, help="Set specific BPM (beats per minute) for the MIDI file")
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
     parser.add_argument("-l","--listen", help="Play given MIDI file", action="store_true")
+    parser.add_argument("-u","--ui", help="Launch localhost gradio UI", action="store_true")
     args = parser.parse_args()
     
     _bpm = 120
@@ -37,85 +43,205 @@ def main():
 
     out_folder_path = Path("output")
     out_folder_path.mkdir(parents=True, exist_ok=True)
-    
-    if args.bpm:
-        _bpm = args.bpm
-    else:
-        drumExtractor = DrumBeatExtractor()
-        _bpm = drumExtractor.detect_tempo(args.input)   
-    
-    if args.type:
-        stem_type = args.type
 
-    if args.stem:
+    if args.ui:
+        interface = create_interface()
+        interface.launch(share=False,server_name="0.0.0.0", server_port=7860, auth=None, ssl_keyfile=None, ssl_certfile=None)
+    else:
+        if args.bpm:
+            _bpm = args.bpm
+        else:
+            drumExtractor = DrumBeatExtractor()
+            _bpm = drumExtractor.detect_tempo(args.input)   
+        
         if args.type:
             stem_type = args.type
+
+        if args.stem:
+            if args.type:
+                stem_type = args.type
+                processor = DemucsProcessor()
+                sources, sample_rate = processor.separate_stems(args.input)
+                print(f"Stem type requested: {stem_type}")
+                stem_index = ["drums", "bass", "melody", "vocals"].index(stem_type)
+                selected_stem = sources[0, stem_index]
+                # Save stem
+                stem_path = out_folder_path / f"{stem_type}.wav"
+                processor.save_stem(selected_stem, stem_type, out_folder_path, sample_rate)
+                print(f"Saved stem to: {stem_path}")
+                # Load the saved audio file
+                audio_data, sr = librosa.load(stem_path, sr=None, mono=True)
+                if len(audio_data.shape) > 1:
+                    audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
+                # Convert to int16 format
+                audio_data = (audio_data * 32767).astype(np.int16)
+                if args.listen:
+                    timer = librosa.get_duration(path=stem_path)
+                    pygame.mixer.init()
+                    pygame.mixer.music.set_volume(0.8)
+                    time.sleep(1)
+                    pygame.mixer.music.load(stem_path)
+                    pygame.mixer.music.play()
+                    time.sleep(timer)
+            else:
+                print("Error! You need to select type of stem to separate. Check manual.")
+        else:
+            # Load the saved audio file
+            audio_data, sr = librosa.load(args.input, sr=None, mono=True)
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
+            # Convert to int16 format
+            audio_data = (audio_data * 32767).astype(np.int16)
+            stem_path = args.input
+        
+        if args.midi:
+            if args.type:
+                stem_type = args.type
+                midi_path = out_folder_path / f"{stem_type}.mid"
+                if stem_type == "drums":
+                    _onset = 0.1 # bigger onset less notes
+                    if args.onset:
+                        _onset = float(args.onset)
+                    drumExtractor = DrumBeatExtractor()
+                    drumExtractor.extract_midi(stem_path, _bpm, _onset, False) # sensitivity
+                    print(f"Saved MIDI to: {midi_path}")
+                    if args.quantize:
+                        # quantize to 16th notes (assuming 480 ticks per beat and 4 beats per measure)
+                        # 16th note resolution = (480 ticks/beat) / 4 = 120 ticks
+                        quantize_midi_file(midi_path, midi_path, 120)
+                    if args.listen:
+                        midiplayer = MidiDrumPlayer(midi_path, _bpm)
+                        time.sleep(1)
+                        midiplayer.playonce()
+                else:
+                    _sonify = False
+                    _pitchbend = False
+                    _onset = 1.0 # bigger onset less notes
+                    if args.listen:
+                        _sonify = True
+                    if args.pitchbend:
+                        _pitchbend = True
+                    if args.onset:
+                        _onset = float(args.onset)
+                    converter = BasicPitchConverter()
+                    converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, _sonify, _pitchbend, _onset)
+                    print(f"Saved MIDI to: {midi_path}")
+
+def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, separate_stems: bool, bpm: int, sensitivity: float) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
+    _bpm = bpm
+    stem_path = None
+    try:
+        drumExtractor = DrumBeatExtractor()
+        if _bpm <= -1:
+            _bpm = drumExtractor.detect_tempo(audio_path)
+    except:
+        _bpm = 120
+
+    try:
+        process_dir = OUTPUT_DIR / str(hash(audio_path))
+        process_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Starting processing of file: {audio_path}")
+        print(f"Separating stems: {separate_stems}, bpm: {_bpm}")
+        if separate_stems:
+            # Create unique subdirectory for this processing
             processor = DemucsProcessor()
-            sources, sample_rate = processor.separate_stems(args.input)
+            # Process stems
+            sources, sample_rate = processor.separate_stems(audio_path)
+            print(f"Number of sources returned: {sources.shape}")
             print(f"Stem type requested: {stem_type}")
-            stem_index = ["drums", "bass", "melody", "vocals"].index(stem_type)
+            # Get the requested stem
+            stem_index = ["bass", "melody", "vocals"].index(stem_type)
             selected_stem = sources[0, stem_index]
             # Save stem
-            stem_path = out_folder_path / f"{stem_type}.wav"
-            processor.save_stem(selected_stem, stem_type, out_folder_path, sample_rate)
+            stem_path = process_dir / f"{stem_type}.wav"
+            processor.save_stem(selected_stem, stem_type, str(process_dir), sample_rate)
             print(f"Saved stem to: {stem_path}")
-            # Load the saved audio file
+            # Load the saved audio file for Gradio
             audio_data, sr = librosa.load(stem_path, sr=None, mono=True)
             if len(audio_data.shape) > 1:
                 audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
             # Convert to int16 format
             audio_data = (audio_data * 32767).astype(np.int16)
-            if args.listen:
-                timer = librosa.get_duration(path=stem_path)
-                pygame.mixer.init()
-                pygame.mixer.music.set_volume(0.8)
-                time.sleep(1)
-                pygame.mixer.music.load(stem_path)
-                pygame.mixer.music.play()
-                time.sleep(timer)
         else:
-            print("Error! You need to select type of stem to separate. Check manual.")
-    else:
-        # Load the saved audio file
-        audio_data, sr = librosa.load(args.input, sr=None, mono=True)
-        if len(audio_data.shape) > 1:
-            audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
-        # Convert to int16 format
-        audio_data = (audio_data * 32767).astype(np.int16)
-        stem_path = args.input
-    
-    if args.midi:
-        if args.type:
-            stem_type = args.type
-            midi_path = out_folder_path / f"{stem_type}.mid"
+            # Load the saved audio file for Gradio
+            audio_data, sr = librosa.load(audio_path, sr=None, mono=True)
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data.mean(axis=1)  # Convert to mono if stereo
+            # Convert to int16 format
+            audio_data = (audio_data * 32767).astype(np.int16)
+            stem_path = audio_path
+
+        # Convert to MIDI if requested
+        midi_path = None
+        
+        if convert_midi:
             if stem_type == "drums":
-                _onset = 0.1 # bigger onset less notes
-                if args.onset:
-                    _onset = float(args.onset)
-                drumExtractor = DrumBeatExtractor()
-                drumExtractor.extract_midi(stem_path, _bpm, _onset) # sensitivity
+                midi_path = process_dir / f"{stem_type}.mid"
+                drumExtractor.extract_midi(stem_path, _bpm, sensitivity, True)
                 print(f"Saved MIDI to: {midi_path}")
-                if args.quantize:
-                    # quantize to 16th notes (assuming 480 ticks per beat and 4 beats per measure)
-                    # 16th note resolution = (480 ticks/beat) / 4 = 120 ticks
-                    quantize_midi_file(midi_path, midi_path, 120)
-                if args.listen:
-                    midiplayer = MidiDrumPlayer(midi_path, _bpm)
-                    time.sleep(1)
-                    midiplayer.playonce()
             else:
-                _sonify = False
-                _pitchbend = False
-                _onset = 1.0 # bigger onset less notes
-                if args.listen:
-                    _sonify = True
-                if args.pitchbend:
-                    _pitchbend = True
-                if args.onset:
-                    _onset = float(args.onset)
                 converter = BasicPitchConverter()
-                converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, _sonify, _pitchbend, _onset)
+                midi_path = process_dir / f"{stem_type}.mid"
+                converter.convert_to_midi(str(stem_path), str(midi_path), _bpm)
                 print(f"Saved MIDI to: {midi_path}")
+                
+        return (sr, audio_data), str(midi_path) if midi_path else None
+    except Exception as e:
+        print(f"Error in process_single_audio: {str(e)}")
+        raise
+
+def create_interface():
+
+    def process_audio(
+        audio_files: List[str],
+        stem_type: str,
+        convert_midi: bool = True,
+        separate_stems: bool = True,
+        bpm: int = -1,
+        sensitivity: float = 0.3
+    ) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
+        try:
+            print(f"Starting processing of {len(audio_files)} files")
+            print(f"Selected stem type: {stem_type}")
+            # Process single file for now
+            if len(audio_files) > 0:
+                audio_path = audio_files[0]  # Take first file
+                print(f"Processing file: {audio_path}")
+                return process_single_audio(audio_path, stem_type, convert_midi, separate_stems, bpm, sensitivity)
+            else:
+                raise ValueError("No audio files provided")
+        except Exception as e:
+            print(f"Error in audio processing: {str(e)}")
+            raise gr.Error(str(e))
+
+    interface = gr.Interface(
+        fn=process_audio,
+        inputs=[
+            gr.File(
+                file_count="multiple",
+                file_types=AudioValidator.SUPPORTED_FORMATS,
+                label="Upload Audio Files"
+            ),
+            gr.Dropdown(
+                choices=["vocals", "drums", "bass", "melody"],
+                label="Select Stem to Extract",
+                value="vocals"
+            ),
+            gr.Checkbox(label="Convert to MIDI", value=True),
+            gr.Checkbox(label="Separate Stems", value=True),
+            gr.Number(label="BPM (-1 autodetect)", value=-1),
+            gr.Number(label="Sensitivity (1.0 - 0.0)", value=0.3)
+        ],
+        outputs=[
+            gr.Audio(label="Separated Stems", type="numpy"),
+            gr.File(label="MIDI Files")
+        ],
+        title="MIDIfren - 🎵 Audio Stem & MIDI Processor 🧠",
+        description="Upload audio files to extract stems and convert to MIDI\n\n",
+        cache_examples=True,
+        allow_flagging="never"
+    )
+    return interface    
 
 def resource_path(relative_path):
 	""" Get absolute path to resource, works for dev and for PyInstaller """
@@ -166,15 +292,16 @@ class DrumBeatExtractor:
             print("Error detecting tempo. Setting tempo to default 120.")
             return 120
 
-    def extract_midi(self, audio_file, tempo, sensitivity):
+    def extract_midi(self, audio_file, tempo, sensitivity, ui):
         try:
+            process_dir = OUTPUT_DIR / str(hash(audio_file))
+            process_dir.mkdir(parents=True, exist_ok=True)
             # Load as mono for HPSS and feature extraction
             out_folder_path = Path("output")
             self.y, self.sr = librosa.load(audio_file, sr=None, mono=True)
             # --- Perform HPSS --- # 
             y_percussive = librosa.effects.percussive(self.y)
             # We could also get y_harmonic = librosa.effects.harmonic(self.y) if needed later
-
             # Detect onsets (using the percussive component)
             onset_env = librosa.onset.onset_strength(
                 y=y_percussive, # Use percussive component here
@@ -253,7 +380,6 @@ class DrumBeatExtractor:
 
                 hat_spec_cent_thresh = 2500
                 hat_zcr_thresh = 0.15
-
                 # --- Classification Logic --- #
                 # Prioritize Kick detection if strong low-frequency energy detected
                 if (rms > kick_rms_thresh and
@@ -311,9 +437,16 @@ class DrumBeatExtractor:
                     # Note off (very short duration)
                     track.append(mido.Message('note_off', note=note, velocity=0, time=10))
             # Save the MIDI file
-            midi_path = out_folder_path / "drums.mid"
-            mid.save(midi_path)
             
+            if ui:
+                midi_path = process_dir / "drums.mid"
+                mid.save(midi_path)
+                quantize_midi_file(midi_path, midi_path, 120)
+                
+            else:
+                midi_path = out_folder_path / "drums.mid"
+                mid.save(midi_path)
+              
         except Exception as e:
             print(f"Error exporting MIDI: {str(e)}")
 

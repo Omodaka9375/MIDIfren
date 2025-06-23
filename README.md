@@ -19,11 +19,17 @@ git clone or download this repo and unzip
 cd MIDIfren/
 pip install -r requirements.txt
 ```  
+### 📦 Usage with UI
+```bash
+python MIDIfren.py -u
+```  
+![webui](u.png "Gradio UI")
 
-### 📦 Usage  
+### 📦 Usage with terminal 
 ```bash
 python MIDIfren.py -i <input_audio> -t <sound_type> [options]
 ```  
+![terminal](h.png "Help Page")
 
 **Options**:  
 - `-t, --type` : Choose type: `vocals`, `melody`, `drums`, `bass`  
@@ -40,12 +46,16 @@ python MIDIfren.py -i <input_audio> -t <sound_type> [options]
 
 ### 📌 Example  
 ```bash
-python MIDIfren.py -i input.wav -t drums --listen
+# extract vocal stem from the audio and convert it to midi (with pitchbend) and listen to it
+python MIDIfren.py -i input.wav -type vocals --pitchbend --listen --onset 1.0
 ```  
+---
 **Output**:  
+
+Midi files, sonified midi and stems will be in the output folder.
 - `output/drums.wav` (stem)  
 - `output/drums.mid` (MIDI)  
-- Plays MIDI or stem at detected BPM 🎵  
+- ...
 
 ---  
 **Made by Omodaka9375 with ❤️ for audio enthusiasts & music devs!** 🎶
