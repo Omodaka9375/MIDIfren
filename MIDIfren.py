@@ -1,5 +1,6 @@
 # make by: https://github.com/Omodaka9375 2025
 # repo: https://github.com/Omodaka9375/MIDIfren
+# Melodic instruments conversion using Spotify's basic-pitch converter https://github.com/spotify/basic-pitch
 # version 1.0
 import argparse
 import sys
