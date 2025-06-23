@@ -35,10 +35,12 @@ def main():
     parser.add_argument("-b", "--bpm", type=float, help="Set specific BPM (beats per minute) for the MIDI file")
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
     parser.add_argument("-l","--listen", help="Play given MIDI file", action="store_true")
+    parser.add_argument("-g","--groove", help="Set time signature for the file", action="store_true")
     parser.add_argument("-u","--ui", help="Launch localhost gradio UI", action="store_true")
     args = parser.parse_args()
     
     _bpm = 120
+    _groove = "4/4"
     stem_type = None
 
     out_folder_path = Path("output")
@@ -54,6 +56,9 @@ def main():
             drumExtractor = DrumBeatExtractor()
             _bpm = drumExtractor.detect_tempo(args.input)   
         
+        if args.groove:
+            _groove = args.groove
+
         if args.type:
             stem_type = args.type
 
@@ -103,7 +108,7 @@ def main():
                     if args.onset:
                         _onset = float(args.onset)
                     drumExtractor = DrumBeatExtractor()
-                    drumExtractor.extract_midi(stem_path, _bpm, _onset, False) # sensitivity
+                    drumExtractor.extract_midi(stem_path, _bpm, _onset, _groove, False) # sensitivity
                     print(f"Saved MIDI to: {midi_path}")
                     if args.quantize:
                         # quantize to 16th notes (assuming 480 ticks per beat and 4 beats per measure)
@@ -126,6 +131,8 @@ def main():
                     converter = BasicPitchConverter()
                     converter.convert_to_midi(str(stem_path), str(midi_path), _bpm, _sonify, _pitchbend, _onset)
                     print(f"Saved MIDI to: {midi_path}")
+
+
 
 def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, separate_stems: bool, bpm: int, sensitivity: float) -> Tuple[Tuple[int, np.ndarray], Optional[str]]:
     _bpm = bpm
@@ -177,7 +184,7 @@ def process_single_audio(audio_path: str, stem_type: str, convert_midi: bool, se
         if convert_midi:
             if stem_type == "drums":
                 midi_path = process_dir / f"{stem_type}.mid"
-                drumExtractor.extract_midi(stem_path, _bpm, sensitivity, True)
+                drumExtractor.extract_midi(stem_path, _bpm, sensitivity, "4/4", True)
                 print(f"Saved MIDI to: {midi_path}")
             else:
                 converter = BasicPitchConverter()
@@ -292,7 +299,10 @@ class DrumBeatExtractor:
             print("Error detecting tempo. Setting tempo to default 120.")
             return 120
 
-    def extract_midi(self, audio_file, tempo, sensitivity, ui):
+    def extract_midi(self, audio_file, tempo, sensitivity, groove, ui):
+        times =  groove.split('/')
+        nom = times[0]
+        denom = times[1]
         try:
             process_dir = OUTPUT_DIR / str(hash(audio_file))
             process_dir.mkdir(parents=True, exist_ok=True)
@@ -417,8 +427,8 @@ class DrumBeatExtractor:
             # Set tempo
             tempo_in_microseconds = mido.bpm2tempo(tempo)
             track.append(mido.MetaMessage('set_tempo', tempo=tempo_in_microseconds))
-            # Set time signature (assuming 4/4)
-            track.append(mido.MetaMessage('time_signature', numerator=4, denominator=4))
+            # Set time signature (assuming 4/4 by default) 
+            track.append(mido.MetaMessage('time_signature', numerator=nom, denominator=denom))
             # Convert onset frames to ticks
             ticks_per_beat = mid.ticks_per_beat
             seconds_per_tick = 60.0 / (tempo * ticks_per_beat)
