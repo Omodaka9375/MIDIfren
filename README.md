@@ -1,6 +1,6 @@
 # MIDIfren 🎵 Audio Stem & MIDI Processor 🧠  
 
-**Convert audio stems to MIDI, extract beats, and play back with customizable settings!**  
+**Convert audio to stems to MIDI! Extract melody, bass, drums to midi and play back with customizable settings!**  
 
 ---
 
