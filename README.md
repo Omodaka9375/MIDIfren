@@ -15,7 +15,7 @@
 - **Maximum input file size**: 100MB 📢 
 
 ---
-### 📦 Video demo 
+### 📹 WebUI demo 
 [![youtube](u.png)](https://www.youtube.com/watch?v=O2h1x890vjY)
 
 ---
@@ -93,4 +93,4 @@ Midi files, sonified midi and stems will be in the output folder.
 ---  
 
 
-**Made by Omodaka9375 with ❤️ for audio enthusiasts & music devs!** 🎶
+**Made with ❤️ for audio enthusiasts & music devs!** 🎶
