@@ -16,7 +16,7 @@
 
 ---
 ### 📦 Video demo 
-[![youtube](u.png)](https://www.youtube.com/watch?v=O2h1x890vjY)
+[![youtube](u.png)](https://www.youtube.com/watch?v=O2h1x890vjY) {:target="_blank" rel="noopener"}
 
 ---
 
