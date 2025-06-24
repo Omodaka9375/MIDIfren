@@ -89,6 +89,7 @@ Midi files, sonified midi and stems will be in the output folder.
 **Note**:
 
 - All audio is automatically normalized and trimmed for silence before processing.
+- Depending on the input audio (fast drums or sustained notes and drones) you may need to play with sensitivity and minimal note length. In general, if you want less notes in you midi file raise sensitivity to 0.8 or 1.0. 
 
 ---  
 
