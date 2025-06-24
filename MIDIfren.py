@@ -36,7 +36,7 @@ def main():
     parser.add_argument("-s", "--stem", help="Extract stem", action="store_true")
     parser.add_argument("-p", "--pitchbend", help="Include pitchbend in midi", action="store_true")
     parser.add_argument("-b", "--bpm", type=float, help="Set specific BPM (beats per minute) for the MIDI file")
-    parser.add_argument("-n", "--note", type=float, help="Ser minimal note length. Everything below will be ignored.")
+    parser.add_argument("-n", "--note", type=float, help="Set minimal note length. Everything below will be ignored.")
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
     parser.add_argument("-l", "--listen", help="Play given MIDI file", action="store_true")
     parser.add_argument("-g", "--groove", help="Set time signature for the file", action="store_true")
