@@ -46,10 +46,12 @@ python MIDIfren.py -i <input_audio> -t <sound_type> [options]
 - `-m, --midi` : Convert audio to midi  
 - `-s, --stem` : Extract stem based on type selected 
 - `-q, --quantize` : Quantize generated midi  
-- `-p, --pitchbend` : Detect pitchbend  
+- `-p, --pitchbend` : Detect pitchbend
+- `-n, --note` : Set minimal note length, everything below that will be ignored
 - `-o, --onset` : Adjust note trigger sensitivity (0-1, default = 1)  
 - `-g, --groove` : Set timesignature for drums e.g., '4/4' 
-- `-l, --listen` : Play generated MIDI file or exported stem immediately 🎶  
+- `-l, --listen` : Play generated MIDI file or exported stem immediately 🎶
+- `-w, --web` : Launch localhost gradio webUI 
 
 ---
 
