@@ -24,6 +24,7 @@ pip install -r requirements.txt
 ### 📦 Usage with UI
 ```bash
 python MIDIfren.py -u
+# Go to localhost:7860 to see the UI
 ```  
 ![webui](u.png "Gradio UI")
 
