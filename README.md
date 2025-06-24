@@ -16,8 +16,7 @@
 
 ---
 ### 📦 Video demo 
-
-[![](u.png)](MIDIFrenDemo.mp4)
+[![youtube](u.png)](https://www.youtube.com/watch?v=O2h1x890vjY)
 
 ---
 
