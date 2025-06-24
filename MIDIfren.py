@@ -29,7 +29,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def main():
     parser = argparse.ArgumentParser(add_help=True, description="Convert audio to stems and/or midi file and listen to it", prog="MIDIfren",  epilog="Thank you for using MIDIfren <3 Omodaka9375 2025")
-    parser.add_argument("-i","--input", help="Input audio file (wav, mp3 or flac)", type=str)
+    parser.add_argument("-i", "--input", help="Input audio file (wav, mp3 or flac)", type=str)
     parser.add_argument("-t", "--type", choices=['drums', 'bass', 'melody', 'vocals'])
     parser.add_argument("-m", "--midi", help="Convert to midi", action="store_true")
     parser.add_argument("-q", "--quantize", help="Quantize midi file", action="store_true")
@@ -38,9 +38,9 @@ def main():
     parser.add_argument("-b", "--bpm", type=float, help="Set specific BPM (beats per minute) for the MIDI file")
     parser.add_argument("-n", "--note", type=float, help="Ser minimal note length. Everything below will be ignored.")
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
-    parser.add_argument("-l","--listen", help="Play given MIDI file", action="store_true")
-    parser.add_argument("-g","--groove", help="Set time signature for the file", action="store_true")
-    parser.add_argument("-w","--web", help="Launch localhost gradio webUI", action="store_true")
+    parser.add_argument("-l", "--listen", help="Play given MIDI file", action="store_true")
+    parser.add_argument("-g", "--groove", help="Set time signature for the file", action="store_true")
+    parser.add_argument("-w", "--web", help="Launch localhost gradio webUI", action="store_true")
     args = parser.parse_args()
     
     _bpm = 120
