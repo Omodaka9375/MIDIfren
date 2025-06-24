@@ -268,8 +268,7 @@ def create_interface():
     )
     return interface    
 
-def resource_path(relative_path):
-	""" Get absolute path to resource, works for dev and for PyInstaller """
+def resource_path(relative_path: str):
 	try:
 		# PyInstaller creates a temp folder and stores path in _MEIPASS
 		base_path = sys._MEIPASS

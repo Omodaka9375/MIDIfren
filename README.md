@@ -15,6 +15,13 @@
 - **Maximum input file size**: 100MB 📢 
 
 ---
+### 📦 Video demo 
+
+[![](u.png)](MIDIFrenDemo.mp4)
+
+---
+
+---
 ### 📦 Installation  
 ```bash
 # python version >= 3.8
@@ -27,7 +34,6 @@ pip install -r requirements.txt
 python MIDIfren.py --web
 # Go to localhost:7860 to see the UI
 ```  
-![webui](u.png "Gradio UI")
 
 ### 📦 Usage with terminal 
 ```bash
