@@ -40,7 +40,7 @@ def main():
     parser.add_argument("-o", "--onset", type=float, help="Set specific threshold for triggering notes. Range 0-1. Default 1. Bigger number less notes.")
     parser.add_argument("-l","--listen", help="Play given MIDI file", action="store_true")
     parser.add_argument("-g","--groove", help="Set time signature for the file", action="store_true")
-    parser.add_argument("-u","--ui", help="Launch localhost gradio UI", action="store_true")
+    parser.add_argument("-w","--web", help="Launch localhost gradio webUI", action="store_true")
     args = parser.parse_args()
     
     _bpm = 120
@@ -52,7 +52,7 @@ def main():
     out_folder_path = Path("output")
     out_folder_path.mkdir(parents=True, exist_ok=True)
 
-    if args.ui:
+    if args.web:
         interface = create_interface()
         interface.launch(share=False,server_name="0.0.0.0", server_port=7860, auth=None, ssl_keyfile=None, ssl_certfile=None)
     else:
@@ -318,7 +318,7 @@ class DrumBeatExtractor:
             print("Error detecting tempo. Setting tempo to default 120.")
             return 120
 
-    def extract_midi(self, audio_file, tempo, sensitivity, groove, quantize, ui):
+    def extract_midi(self, audio_file, tempo, sensitivity, groove, quantize, web):
         times =  groove.split('/')
         nom = int(times[0])
         denom = int(times[1])
@@ -470,7 +470,7 @@ class DrumBeatExtractor:
                     track.append(mido.Message('note_off', note=note, velocity=0, time=10))
             # Save the MIDI file
            
-            if ui:
+            if web:
                 midi_path = process_dir / "drums.mid"
                 mid.save(midi_path)
                 if quantize:

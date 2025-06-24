@@ -6,6 +6,7 @@
 
 ### 💡 Features  
 - **Supported fomats**: wav, mp3 and flac 🗣️ 
+- **Usage**: Use in command-line 🖥️ or through Web UI 🌐 
 - **Stem Separation**: Extract vocals, melody, drums, or bass from audio 🎙️  
 - **BPM Detection**: Auto-detect tempo or set manually ⏱️  
 - **MIDI Conversion**: Convert stems or audio to MIDI with adjustable sensitivity and pitchbend 📊  
@@ -23,7 +24,7 @@ pip install -r requirements.txt
 ```  
 ### 📦 Usage with UI
 ```bash
-python MIDIfren.py -u
+python MIDIfren.py --web
 # Go to localhost:7860 to see the UI
 ```  
 ![webui](u.png "Gradio UI")
